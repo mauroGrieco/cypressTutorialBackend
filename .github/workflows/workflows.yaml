@@ -1,35 +1,35 @@
-name: Java CI with Maven
+name: Java
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v2
         with:
           java-version: '17'
-          distribution: 'temurin'
-      - name: Run the Maven verify phase
-        run: mvn --batch-mode --update-snapshots verify
-      - name: Run tests
-        run: mvn test
-      - name: Check test results
-        run: |
-          TEST_RESULTS=$(mvn surefire-report:report-only | grep -E 'Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+' | tail -1)
-          echo "Test results: $TEST_RESULTS"
-          TESTS_RUN=$(echo $TEST_RESULTS | grep -oP 'Tests run: \K[0-9]+')
-          TESTS_FAILED=$(echo $TEST_RESULTS | grep -oP 'Failures: \K[0-9]+')
-          TESTS_ERRORS=$(echo $TEST_RESULTS | grep -oP 'Errors: \K[0-9]+')
-          TESTS_PASSED=$((TESTS_RUN - TESTS_FAILED - TESTS_ERRORS))
-          PASS_RATE=$((100 * TESTS_PASSED / TESTS_RUN))
-          echo "Pass rate: $PASS_RATE%"
-          if [ $PASS_RATE -lt 75 ]; then
-            echo "Less than 75% of tests passed. Failing the build."
-            exit 1
+          distribution: 'adopt'
+
+      - name: Build
+        run: mvn --batch-mode -DskipTests package
+
+      - name: Test
+        run: mvn --batch-mode -Dmaven.test.failure.ignore=true test
+
+      - name: Report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Maven Tests
+          path: target/surefire-reports/*.xml
+          reporter: java-junit
+          fail-on-error: true

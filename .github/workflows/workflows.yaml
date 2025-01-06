@@ -11,19 +11,37 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v3
         with:
           java-version: '17'
-          distribution: 'adopt'
+          distribution: 'temurin'
 
       - name: Build
         run: mvn --batch-mode -DskipTests package
 
       - name: Test
         run: mvn --batch-mode -Dmaven.test.failure.ignore=true test
+
+      - name: Analyze Test Results
+        run: |
+          TOTAL_TESTS=$(grep -oP '(?<=<testsuite[^>]*tests=")\d+' target/surefire-reports/*.xml | awk '{s+=$1} END {print s}')
+          FAILED_TESTS=$(grep -oP '(?<=<testsuite[^>]*failures=")\d+' target/surefire-reports/*.xml | awk '{s+=$1} END {print s}')
+          SUCCESSFUL_TESTS=$((TOTAL_TESTS - FAILED_TESTS))
+          SUCCESS_RATE=$(echo "scale=2; ($SUCCESSFUL_TESTS / $TOTAL_TESTS) * 100" | bc)
+
+          echo "Total Tests: $TOTAL_TESTS"
+          echo "Failed Tests: $FAILED_TESTS"
+          echo "Success Rate: $SUCCESS_RATE%"
+
+          if (( $(echo "$SUCCESS_RATE < 75" | bc -l) )); then
+            echo "❌ Test Success Rate is below 75%! ($SUCCESS_RATE%)"
+            exit 1
+          else
+            echo "✅ Test Success Rate is acceptable. ($SUCCESS_RATE%)"
+          fi
 
       - name: Report
         uses: dorny/test-reporter@v1

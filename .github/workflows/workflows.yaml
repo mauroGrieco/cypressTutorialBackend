@@ -18,6 +18,18 @@ jobs:
           distribution: 'temurin'
       - name: Run the Maven verify phase
         run: mvn --batch-mode --update-snapshots verify
-
-
-
+      - name: Run tests
+        run: mvn test
+      - name: Check test results
+        run: |
+          TEST_RESULTS=$(mvn surefire-report:report-only | grep -E 'Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+' | tail -1)
+          echo "Test results: $TEST_RESULTS"
+          TESTS_RUN=$(echo $TEST_RESULTS | grep -oP 'Tests run: \K[0-9]+')
+          TESTS_FAILED=$(echo $TEST_RESULTS | grep -oP 'Failures: \K[0-9]+')
+          TESTS_ERRORS=$(echo $TEST_RESULTS | grep -oP 'Errors: \K[0-9]+')
+          TESTS_PASSED=$((TESTS_RUN - TESTS_FAILED - TESTS_ERRORS))
+          PASS_RATE=$((100 * TESTS_PASSED / TESTS_RUN))
+          echo "Pass rate: $PASS_RATE%"
+          if [ $PASS_RATE -lt 75 ]; then
+            echo "Less than 75% of tests passed. Failing the build."
+            exit 1
